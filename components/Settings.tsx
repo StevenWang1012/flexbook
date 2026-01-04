@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Member, YogaClass, AttendanceRecord } from '../types';
 
 // 🟢 設定：請將您的 Google Apps Script 網址貼在下方引號中
-const GOOGLE_SCRIPT_URL = ""; 
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyUZPQiOhIuMCkcPISRl0fcl86RVACwC0XUE6a83r_QM4ShfYdIMJqBtjtJJpfn8NuY/exec"; 
 // 例如: "https://script.google.com/macros/s/AKfycbyUZPQiOhIuMCkcPISRl0fcl86RVACwC0XUE6a83r_QM4ShfYdIMJqBtjtJJpfn8NuY/exec"
 
 interface SettingsProps {
