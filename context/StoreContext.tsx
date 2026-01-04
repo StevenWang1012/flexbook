@@ -14,7 +14,6 @@ interface StoreContextType {
   setTemplates: React.Dispatch<React.SetStateAction<ClassTemplate[]>>;
   syncStatus: SyncStatus;
   setSyncStatus: React.Dispatch<React.SetStateAction<SyncStatus>>;
-  // 🟢 修改：允許傳入臨時網址與密碼進行測試
   syncToCloud: () => Promise<boolean>;
   syncFromCloud: (isSilent?: boolean, overrideUrl?: string, overrideSecret?: string) => Promise<boolean>;
 }
@@ -54,8 +53,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const syncToCloud = async (): Promise<boolean> => {
     const { url, secret } = getApiConfig();
-    
-    // 自動存檔時，如果沒有設定好，就靜默失敗，不要噴錯
     if (!url || !secret) return false;
     
     setSyncStatus('syncing');
@@ -80,7 +77,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   };
 
-  // 🟢 核心修改：優先使用傳入的參數 (override)，如果沒有才讀取設定
   const syncFromCloud = async (isSilent = false, overrideUrl?: string, overrideSecret?: string): Promise<boolean> => {
     const config = getApiConfig();
     const url = overrideUrl || config.url;
@@ -136,7 +132,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     const timer = setTimeout(() => {
       syncToCloud();
-    }, 2000); // 2秒後自動上傳
+    }, 2000); 
 
     return () => clearTimeout(timer);
   }, [members, classes, records, templates]);

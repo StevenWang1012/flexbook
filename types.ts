@@ -37,7 +37,6 @@ export interface AttendanceRecord {
   status: 'present' | 'absent' | 'late';
 }
 
-// 🟢 確保這裡有 ClassTemplate 定義
 export interface ClassTemplate {
   id: string;
   name: string;

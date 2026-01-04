@@ -12,35 +12,29 @@ const Settings: React.FC = () => {
     setTemplates
   } = useStore();
 
-  // 這些 State 是暫存的，還沒寫入 LocalStorage
   const [apiSecret, setApiSecret] = useState(localStorage.getItem('zenflow_gas_secret') || '');
   const [dynamicUrl, setDynamicUrl] = useState(localStorage.getItem('zenflow_gas_url') || '');
   const [newTemplateName, setNewTemplateName] = useState('');
   
-  // 是否已驗證成功並鎖定
   const [isVerified, setIsVerified] = useState(false);
 
-  // 初始化檢查：如果原本就有存好的設定，預設為已驗證
   useEffect(() => {
     const savedUrl = localStorage.getItem('zenflow_gas_url');
     const savedSecret = localStorage.getItem('zenflow_gas_secret');
     if (savedUrl && savedSecret) {
-      // 這裡不自動設為 true，讓使用者還是可以看到狀態，但我們可以假設它已設定
+      setIsVerified(true);
     }
   }, []);
 
   const handleConnect = async () => {
-    // 優先使用寫死的 URL，沒有才用輸入框的
     const urlToUse = GOOGLE_SCRIPT_URL || dynamicUrl;
     
     if (!urlToUse.trim()) return alert('請輸入系統網址');
     if (!apiSecret.trim()) return alert('請輸入通關密語');
 
-    // 🟢 關鍵修改：直接把現在輸入框的值傳進去測試，不依賴 localStorage
     const success = await syncFromCloud(false, urlToUse, apiSecret);
     
     if (success) {
-      // ✅ 測試成功了！這時候才把正確的設定存起來
       localStorage.setItem('zenflow_gas_url', urlToUse);
       localStorage.setItem('zenflow_gas_secret', apiSecret);
       setIsVerified(true);
@@ -72,7 +66,6 @@ const Settings: React.FC = () => {
     }
   };
 
-  // 狀態顯示邏輯
   const isConfigured = !!((GOOGLE_SCRIPT_URL || dynamicUrl) && apiSecret);
   
   const getStatusDisplay = () => {
