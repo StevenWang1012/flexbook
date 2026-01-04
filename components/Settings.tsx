@@ -3,7 +3,7 @@ import { Member, YogaClass, AttendanceRecord } from '../types';
 
 // 🟢 設定：請將您的 Google Apps Script 網址貼在下方引號中
 const GOOGLE_SCRIPT_URL = ""; 
-// 例如: "https://script.google.com/macros/s/AKfycbyUZPQiOhIuMCkcPISRl0fcl86RVACwC0XUE6a83r_QM4ShfYdIMJqBtjtJJpfn8NuY/exec"
+// 例如: "https://script.google.com/macros/s/AKfycbx.../exec"
 
 interface SettingsProps {
   members: Member[];
@@ -14,13 +14,50 @@ interface SettingsProps {
   setRecords: (r: AttendanceRecord[]) => void;
 }
 
+// 定義課程模板介面
+interface ClassTemplate {
+  id: string;
+  name: string; // 課程名稱
+  defaultLocation?: string; // 預設教室 (選填)
+  defaultCapacity?: number; // 預設人數 (選填)
+}
+
 const Settings: React.FC<SettingsProps> = ({ members, classes, records, setMembers, setClasses, setRecords }) => {
   const [apiSecret, setApiSecret] = useState(localStorage.getItem('zenflow_gas_secret') || '');
   const [isSyncing, setIsSyncing] = useState(false);
+  
+  // 🟢 新增：課程模板狀態管理
+  const [templates, setTemplates] = useState<ClassTemplate[]>(() => {
+    const saved = localStorage.getItem('zenflow_class_templates');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [newTemplateName, setNewTemplateName] = useState('');
 
   useEffect(() => {
     localStorage.setItem('zenflow_gas_secret', apiSecret);
   }, [apiSecret]);
+
+  // 🟢 新增：當模板更動時，存入 localStorage
+  useEffect(() => {
+    localStorage.setItem('zenflow_class_templates', JSON.stringify(templates));
+  }, [templates]);
+
+  const handleAddTemplate = () => {
+    if (!newTemplateName.trim()) return;
+    const newTemplate: ClassTemplate = {
+      id: Date.now().toString(),
+      name: newTemplateName.trim(),
+      defaultCapacity: 10
+    };
+    setTemplates([...templates, newTemplate]);
+    setNewTemplateName('');
+  };
+
+  const handleRemoveTemplate = (id: string) => {
+    if (confirm('確定要刪除這個課程模板嗎？')) {
+      setTemplates(templates.filter(t => t.id !== id));
+    }
+  };
 
   const syncToCloud = async () => {
     if (!GOOGLE_SCRIPT_URL) return alert('系統未設定雲端網址，請聯絡管理員 (開發者)');
@@ -35,7 +72,12 @@ const Settings: React.FC<SettingsProps> = ({ members, classes, records, setMembe
         body: JSON.stringify({ 
           action: 'push', 
           secret: apiSecret,
-          data: { members, classes, records } 
+          data: { 
+            members, 
+            classes, 
+            records,
+            templates // 🟢 同步時一併上傳模板
+          } 
         })
       });
       alert('✅ 上傳成功！資料已同步至雲端試算表。');
@@ -56,10 +98,11 @@ const Settings: React.FC<SettingsProps> = ({ members, classes, records, setMembe
       const result = await response.json();
       
       if (result.status === 'success') {
-        const { members: m, classes: c, records: r } = result.data;
+        const { members: m, classes: c, records: r, templates: t } = result.data;
         if (m) setMembers(m);
         if (c) setClasses(c);
         if (r) setRecords(r);
+        if (t) setTemplates(t); // 🟢 下載時一併更新模板
         alert('✅ 下載成功！資料已更新至最新狀態。');
       } else if (result.status === 'error') {
         alert('❌ 驗證失敗：' + result.message + ' (請檢查密碼)');
@@ -74,6 +117,49 @@ const Settings: React.FC<SettingsProps> = ({ members, classes, records, setMembe
   return (
     <div className="space-y-6 pb-10">
       <h2 className="text-xl font-bold text-slate-800">系統設定</h2>
+
+      {/* 🟢 新增：常用課程模板管理區塊 */}
+      <section className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm space-y-4">
+        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+          常用課程模板設定
+        </h3>
+        <p className="text-xs text-slate-400">在此設定您的常態課程名稱（如：哈達瑜珈、空中瑜珈），新增課程時即可直接選取。</p>
+        
+        <div className="flex gap-2">
+          <input 
+            type="text" 
+            value={newTemplateName}
+            onChange={(e) => setNewTemplateName(e.target.value)}
+            placeholder="輸入課程名稱 (例如: 週一哈達瑜珈)" 
+            className="flex-1 border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+            onKeyDown={(e) => e.key === 'Enter' && handleAddTemplate()}
+          />
+          <button 
+            onClick={handleAddTemplate}
+            disabled={!newTemplateName.trim()}
+            className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50"
+          >
+            新增
+          </button>
+        </div>
+
+        <div className="flex flex-wrap gap-2 mt-2">
+          {templates.length > 0 ? templates.map(t => (
+            <div key={t.id} className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
+              <span className="text-sm font-bold text-slate-700">{t.name}</span>
+              <button 
+                onClick={() => handleRemoveTemplate(t.id)}
+                className="text-slate-400 hover:text-red-500"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+              </button>
+            </div>
+          )) : (
+            <p className="text-xs text-slate-300 italic w-full text-center py-2">尚未設定任何模板</p>
+          )}
+        </div>
+      </section>
 
       <section className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm space-y-6">
         
