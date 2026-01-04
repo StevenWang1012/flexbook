@@ -1,0 +1,7 @@
+{
+  "name": "ZenFlow Yoga Manager",
+  "description": "一個專為瑜珈老師設計的輕量化課程與會員管理系統，支援課程排期、會員資料維護及點名紀錄。可結合 Google Sheets 作為後端儲存方案。",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
