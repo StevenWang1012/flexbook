@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { YogaClass, Member, AttendanceRecord } from '../types';
 
@@ -21,6 +20,30 @@ const ClassManager: React.FC<ClassManagerProps> = ({ classes, setClasses, member
     location: '',
     maxCapacity: 10
   });
+
+  // 🟢 工具：日期格式化 (相容 YYYY-MM-DD 與 ISO 格式)
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    // 如果是 ISO 格式 (包含 T)，轉為當地日期顯示
+    if (dateStr.includes('T')) {
+      return new Date(dateStr).toLocaleDateString();
+    }
+    return dateStr;
+  };
+
+  // 🟢 工具：時間格式化 (相容 HH:mm 與 ISO 格式)
+  const formatTime = (timeStr: string) => {
+    if (!timeStr) return '';
+    // 如果是 ISO 格式 (Google Sheet 傳回來的)，轉為 HH:mm
+    if (timeStr.includes('T')) {
+      return new Date(timeStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    }
+    // 嘗試修復可能出現的秒數 (19:00:00 -> 19:00)
+    if (timeStr.split(':').length === 3) {
+      return timeStr.substring(0, 5);
+    }
+    return timeStr;
+  };
 
   const handleAddClass = (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,6 +132,14 @@ const ClassManager: React.FC<ClassManagerProps> = ({ classes, setClasses, member
       })
     : [];
 
+  // 取得常用模板 (從 localStorage)
+  const templates = React.useMemo(() => {
+    try {
+      const saved = localStorage.getItem('zenflow_class_templates');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  }, [showAddForm]); // 當開啟表單時重新讀取
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -123,8 +154,33 @@ const ClassManager: React.FC<ClassManagerProps> = ({ classes, setClasses, member
 
       {showAddForm && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl animate-slideUp">
+          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl animate-slideUp max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold mb-4">安排新課程</h3>
+            
+            {/* 🟢 新增：快速模板選擇 */}
+            {templates.length > 0 && (
+              <div className="mb-4">
+                <label className="text-xs font-bold text-slate-500 uppercase block mb-2">快速帶入模板</label>
+                <div className="flex flex-wrap gap-2">
+                  {templates.map((t: any) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setFormData(prev => ({
+                        ...prev,
+                        title: t.name,
+                        location: t.defaultLocation || prev.location,
+                        maxCapacity: t.defaultCapacity || prev.maxCapacity
+                      }))}
+                      className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-100 px-3 py-1.5 rounded-lg font-bold active:bg-emerald-100"
+                    >
+                      {t.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <form onSubmit={handleAddClass} className="space-y-4">
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase">課程名稱</label>
@@ -166,7 +222,10 @@ const ClassManager: React.FC<ClassManagerProps> = ({ classes, setClasses, member
           </button>
           <div className="bg-slate-50 rounded-2xl p-4 mb-6">
             <h3 className="text-xl font-bold text-slate-800">{selectedClass.title}</h3>
-            <p className="text-sm text-slate-500 mt-1">{selectedClass.date} • {selectedClass.time} • {selectedClass.location}</p>
+            {/* 🟢 套用格式化 */}
+            <p className="text-sm text-slate-500 mt-1">
+              {formatDate(selectedClass.date)} • {formatTime(selectedClass.time)} • {selectedClass.location}
+            </p>
           </div>
           
           <div className="mt-8">
@@ -234,8 +293,9 @@ const ClassManager: React.FC<ClassManagerProps> = ({ classes, setClasses, member
               <div>
                 <h4 className="font-bold text-slate-700 text-lg">{c.title}</h4>
                 <div className="flex items-center gap-3 text-xs text-slate-500 mt-2">
-                  <span className="bg-slate-100 px-2 py-1 rounded-md">{c.date}</span>
-                  <span className="bg-slate-100 px-2 py-1 rounded-md">{c.time}</span>
+                  {/* 🟢 套用格式化 */}
+                  <span className="bg-slate-100 px-2 py-1 rounded-md">{formatDate(c.date)}</span>
+                  <span className="bg-slate-100 px-2 py-1 rounded-md">{formatTime(c.time)}</span>
                   <span className="text-emerald-600 font-bold">{c.attendees.length} / {c.maxCapacity} 人</span>
                 </div>
               </div>

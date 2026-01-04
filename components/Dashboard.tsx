@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Member, YogaClass, AttendanceRecord } from '../types';
 
@@ -14,9 +13,28 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ members, classes, records, setClasses, setRecords, setMembers }) => {
   const [quickClass, setQuickClass] = useState<YogaClass | null>(null);
   
+  // 🟢 工具：時間格式化 (相容 HH:mm 與 ISO 格式)
+  const formatTime = (timeStr: string) => {
+    if (!timeStr) return '';
+    // 如果是 ISO 格式 (Google Sheet 傳回來的)，轉為 HH:mm
+    if (timeStr.includes('T')) {
+      return new Date(timeStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    }
+    // 嘗試修復可能出現的秒數 (19:00:00 -> 19:00)
+    if (timeStr.split(':').length === 3) {
+      return timeStr.substring(0, 5);
+    }
+    return timeStr;
+  };
+  
+  // 🟢 工具：日期標準化 (只取 YYYY-MM-DD，處理 Google Sheet 回傳的 ISO 格式)
+  const normalizeDate = (d: string) => d.includes('T') ? d.split('T')[0] : d;
+  
   const todayStr = new Date().toISOString().split('T')[0];
-  const todayClasses = classes.filter(c => c.date === todayStr).sort((a, b) => a.time.localeCompare(b.time));
-  const upcomingClasses = classes.filter(c => c.date > todayStr).sort((a, b) => a.date.localeCompare(b.date));
+  
+  // 🟢 修正：篩選時先將日期格式標準化，避免因為時區或格式不同導致找不到今日課程
+  const todayClasses = classes.filter(c => normalizeDate(c.date) === todayStr).sort((a, b) => a.time.localeCompare(b.time));
+  const upcomingClasses = classes.filter(c => normalizeDate(c.date) > todayStr).sort((a, b) => a.date.localeCompare(b.date));
   
   const activeMembersCount = members.length;
   const recentRecordsCount = records.filter(r => {
@@ -126,7 +144,8 @@ const Dashboard: React.FC<DashboardProps> = ({ members, classes, records, setCla
                   <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
                     <span className="flex items-center gap-1 font-medium text-emerald-600">
                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                       {c.time}
+                       {/* 🟢 套用格式化 */}
+                       {formatTime(c.time)}
                     </span>
                     <span>•</span>
                     <span>{c.location}</span>
@@ -163,10 +182,11 @@ const Dashboard: React.FC<DashboardProps> = ({ members, classes, records, setCla
                   <div className="flex items-center gap-2 text-sm text-slate-500 mt-1">
                     <span className="flex items-center gap-1">
                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                       {c.date}
+                       {/* 🟢 套用格式化 */}
+                       {normalizeDate(c.date)}
                     </span>
                     <span>•</span>
-                    <span>{c.time}</span>
+                    <span>{formatTime(c.time)}</span>
                   </div>
                 </div>
                 <div className="text-right">
@@ -183,7 +203,7 @@ const Dashboard: React.FC<DashboardProps> = ({ members, classes, records, setCla
       </section>
 
       <section className="bg-white rounded-2xl p-5 border border-slate-100">
-        <h3 className="text-md font-bold text-slate-800 mb-3">AI 經營洞察</h3>
+        <h3 className="text-md font-bold text-slate-800 mb-3">經營小幫手</h3>
         <p className="text-sm text-slate-600 leading-relaxed">
           {todayClasses.length > 0 
             ? `今天共有 ${todayClasses.length} 堂課，預計服務 ${todayClasses.reduce((acc, c) => acc + c.attendees.length, 0)} 位會員。記得在課前確認教室通風狀況！`
@@ -198,7 +218,7 @@ const Dashboard: React.FC<DashboardProps> = ({ members, classes, records, setCla
             <div className="flex justify-between items-start mb-4">
               <div>
                 <h3 className="text-lg font-bold">{quickClass.title} - 快速點名</h3>
-                <p className="text-xs text-slate-500">{quickClass.time} @ {quickClass.location}</p>
+                <p className="text-xs text-slate-500">{formatTime(quickClass.time)} @ {quickClass.location}</p>
               </div>
               <button onClick={() => setQuickClass(null)} className="p-2 text-slate-400 hover:text-slate-600">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
