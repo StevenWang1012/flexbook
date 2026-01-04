@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ClassTemplate } from '../types';
-import { useStore } from '../context/StoreContext';
+import { ClassTemplate } from '@/types';
+import { useStore } from '@/context/StoreContext';
 
 // 🟢 設定：若您會操作程式碼，可將網址貼在下方引號中
 const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxnOMmj0TFVeatfeZ9HFtLib7BzfSlP1fEbnlojY4_-KkFSUBtAyOsHOkWdypSQF62N/exec"; 
@@ -40,12 +40,14 @@ const Settings: React.FC = () => {
     if (!apiSecret) return alert('請輸入通關密語');
 
     // 嘗試從雲端拉取資料以驗證連線
-    await syncFromCloud();
+    const success = await syncFromCloud();
     
-    // 若 syncStatus 變成 success (需在 StoreContext 內部處理，這裡簡單假設沒報錯即成功)
-    // 為了更好的體驗，我們在 syncFromCloud 成功後會設定狀態
-    // 這裡我們假設使用者看到成功提示後，狀態就是已驗證
-    setIsVerified(true);
+    // 只有當 success 為 true 時，才設定為「已驗證」
+    if (success) {
+      setIsVerified(true);
+    } else {
+      setIsVerified(false);
+    }
   };
 
   const handleUnlock = () => {
@@ -54,7 +56,7 @@ const Settings: React.FC = () => {
     }
   };
 
-  // 模板功能 (保留)
+  // 模板功能
   const handleAddTemplate = () => {
     if (!newTemplateName.trim()) return;
     const newTemplate: ClassTemplate = {
@@ -76,7 +78,7 @@ const Settings: React.FC = () => {
   const getStatusDisplay = () => {
     if (!isConfigured) return { color: 'bg-slate-200', text: '等待輸入', sub: '請輸入資料庫連結資訊' };
     if (syncStatus === 'syncing') return { color: 'bg-blue-500 animate-pulse', text: '正在連線...', sub: '資料同步中' };
-    if (syncStatus === 'success') return { color: 'bg-emerald-500', text: '✅ 已連線', sub: '自動存檔功能運作中' };
+    if (syncStatus === 'success' && isVerified) return { color: 'bg-emerald-500', text: '✅ 已連線', sub: '自動存檔功能運作中' };
     if (syncStatus === 'error') return { color: 'bg-red-500', text: '連線失敗', sub: '請檢查密碼或網址' };
     
     // 預設狀態 (已輸入但未連線)
@@ -129,7 +131,7 @@ const Settings: React.FC = () => {
           />
         </div>
 
-        {/* 🟢 單一按鈕：連結並同步 */}
+        {/* 單一按鈕：連結並同步 */}
         {!isVerified && (
           <button 
             onClick={handleConnect} 
@@ -141,7 +143,7 @@ const Settings: React.FC = () => {
         )}
       </section>
 
-      {/* 常用課程模板 (保留，因為很實用) */}
+      {/* 常用課程模板 */}
       <section className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm space-y-4">
         <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest">常用課程模板</h3>
         
