@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
-import { Member, YogaClass, AttendanceRecord, ClassTemplate } from '@/types';
+import { Member, YogaClass, AttendanceRecord, ClassTemplate } from '../types';
 
 export type SyncStatus = 'idle' | 'syncing' | 'success' | 'error';
 
@@ -14,10 +14,9 @@ interface StoreContextType {
   setTemplates: React.Dispatch<React.SetStateAction<ClassTemplate[]>>;
   syncStatus: SyncStatus;
   setSyncStatus: React.Dispatch<React.SetStateAction<SyncStatus>>;
+  // 🟢 修改：允許傳入臨時網址與密碼進行測試
   syncToCloud: () => Promise<boolean>;
-  syncFromCloud: (isSilent?: boolean) => Promise<boolean>;
-  isAutoSaveEnabled: boolean;
-  setIsAutoSaveEnabled: React.Dispatch<React.SetStateAction<boolean>>;
+  syncFromCloud: (isSilent?: boolean, overrideUrl?: string, overrideSecret?: string) => Promise<boolean>;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -39,33 +38,25 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [templates, setTemplates] = useState<ClassTemplate[]>(() => loadFromStorage('zenflow_class_templates', []));
   
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
-  
-  const [isAutoSaveEnabled, setIsAutoSaveEnabled] = useState(() => {
-    return localStorage.getItem('zenflow_autosave') !== 'false';
-  });
-
   const isFirstRender = useRef(true);
 
+  // 本地持久化
   useEffect(() => { localStorage.setItem('zenflow_members', JSON.stringify(members)); }, [members]);
   useEffect(() => { localStorage.setItem('zenflow_classes', JSON.stringify(classes)); }, [classes]);
   useEffect(() => { localStorage.setItem('zenflow_records', JSON.stringify(records)); }, [records]);
   useEffect(() => { localStorage.setItem('zenflow_class_templates', JSON.stringify(templates)); }, [templates]);
-  useEffect(() => { localStorage.setItem('zenflow_autosave', String(isAutoSaveEnabled)); }, [isAutoSaveEnabled]);
 
   const getApiConfig = () => {
-    const STATIC_URL = ""; 
-    const dynamicUrl = localStorage.getItem('zenflow_gas_url') || "";
-    const url = STATIC_URL || dynamicUrl;
-    const secret = localStorage.getItem('zenflow_gas_secret') || "";
-    return { url, secret };
+    const dynamicUrl = (localStorage.getItem('zenflow_gas_url') || "").trim();
+    const secret = (localStorage.getItem('zenflow_gas_secret') || "").trim();
+    return { url: dynamicUrl, secret };
   };
 
   const syncToCloud = async (): Promise<boolean> => {
     const { url, secret } = getApiConfig();
-    if (!url || !secret) {
-      setSyncStatus('error');
-      return false;
-    }
+    
+    // 自動存檔時，如果沒有設定好，就靜默失敗，不要噴錯
+    if (!url || !secret) return false;
     
     setSyncStatus('syncing');
     try {
@@ -80,22 +71,35 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         })
       });
       setSyncStatus('success');
-      setTimeout(() => setSyncStatus('idle'), 3000);
+      setTimeout(() => setSyncStatus('idle'), 2000);
       return true;
     } catch (err) {
-      console.error(err);
+      console.error("Push Error:", err);
       setSyncStatus('error');
       return false;
     }
   };
 
-  const syncFromCloud = async (isSilent = false): Promise<boolean> => {
-    const { url, secret } = getApiConfig();
-    if (!url || !secret) return false;
+  // 🟢 核心修改：優先使用傳入的參數 (override)，如果沒有才讀取設定
+  const syncFromCloud = async (isSilent = false, overrideUrl?: string, overrideSecret?: string): Promise<boolean> => {
+    const config = getApiConfig();
+    const url = overrideUrl || config.url;
+    const secret = overrideSecret || config.secret;
+
+    if (!url || !secret) {
+      if (!isSilent) alert("請輸入網址與密碼");
+      return false;
+    }
 
     if (!isSilent) setSyncStatus('syncing');
     try {
       const response = await fetch(`${url}?action=pull&secret=${encodeURIComponent(secret)}`);
+      
+      const contentType = response.headers.get("content-type");
+      if (contentType && !contentType.includes("application/json")) {
+        throw new Error("格式錯誤：請確認 GAS 權限已設為「所有人 (Anyone)」");
+      }
+
       const result = await response.json();
       
       if (result.status === 'success') {
@@ -105,35 +109,34 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         if (r) setRecords(r);
         if (t) setTemplates(t);
         setSyncStatus('success');
-        if (!isSilent) alert('✅ 資料已同步至最新狀態');
-        setTimeout(() => setSyncStatus('idle'), 3000);
+        if (!isSilent) alert('✅ 連線成功！資料已同步。');
+        setTimeout(() => setSyncStatus('idle'), 2000);
         return true;
       } else {
         setSyncStatus('error');
-        if (!isSilent) alert('❌ 同步失敗: ' + result.message);
+        if (!isSilent) alert('❌ 失敗: ' + (result.message || '密碼錯誤'));
         return false;
       }
     } catch (err) {
-      console.error(err);
+      console.error("Pull Error:", err);
       setSyncStatus('error');
-      if (!isSilent) alert('❌ 連線失敗');
+      if (!isSilent) alert('❌ 連線失敗 (請檢查網址)');
       return false;
     }
   };
 
+  // 自動存檔邏輯 (僅在已有設定時運作)
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
       return;
     }
-
     const { url, secret } = getApiConfig();
-    if (!isAutoSaveEnabled || !url || !secret) return;
+    if (!url || !secret) return;
 
     const timer = setTimeout(() => {
-      console.log('Auto-saving to cloud...');
       syncToCloud();
-    }, 500);
+    }, 2000); // 2秒後自動上傳
 
     return () => clearTimeout(timer);
   }, [members, classes, records, templates]);
@@ -145,8 +148,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       records, setRecords,
       templates, setTemplates,
       syncStatus, setSyncStatus,
-      syncToCloud, syncFromCloud,
-      isAutoSaveEnabled, setIsAutoSaveEnabled
+      syncToCloud, syncFromCloud
     }}>
       {children}
     </StoreContext.Provider>

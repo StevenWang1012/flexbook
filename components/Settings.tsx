@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { ClassTemplate } from '@/types';
-import { useStore } from '@/context/StoreContext';
+import { ClassTemplate } from '../types';
+import { useStore } from '../context/StoreContext';
 
-// 🟢 設定：若您會操作程式碼，可將網址貼在下方引號中
 const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxnOMmj0TFVeatfeZ9HFtLib7BzfSlP1fEbnlojY4_-KkFSUBtAyOsHOkWdypSQF62N/exec"; 
 
 const Settings: React.FC = () => {
@@ -13,37 +12,37 @@ const Settings: React.FC = () => {
     setTemplates
   } = useStore();
 
+  // 這些 State 是暫存的，還沒寫入 LocalStorage
   const [apiSecret, setApiSecret] = useState(localStorage.getItem('zenflow_gas_secret') || '');
   const [dynamicUrl, setDynamicUrl] = useState(localStorage.getItem('zenflow_gas_url') || '');
   const [newTemplateName, setNewTemplateName] = useState('');
   
-  // 驗證狀態：用來控制鎖定
+  // 是否已驗證成功並鎖定
   const [isVerified, setIsVerified] = useState(false);
 
-  const finalScriptUrl = GOOGLE_SCRIPT_URL || dynamicUrl;
-  const isConfigured = !!(finalScriptUrl && apiSecret);
+  // 初始化檢查：如果原本就有存好的設定，預設為已驗證
+  useEffect(() => {
+    const savedUrl = localStorage.getItem('zenflow_gas_url');
+    const savedSecret = localStorage.getItem('zenflow_gas_secret');
+    if (savedUrl && savedSecret) {
+      // 這裡不自動設為 true，讓使用者還是可以看到狀態，但我們可以假設它已設定
+    }
+  }, []);
 
-  // 監聽並儲存設定
-  useEffect(() => { 
-    localStorage.setItem('zenflow_gas_secret', apiSecret);
-    setIsVerified(false); // 密碼變更時重置驗證狀態
-  }, [apiSecret]);
-  
-  useEffect(() => { 
-    localStorage.setItem('zenflow_gas_url', dynamicUrl);
-    setIsVerified(false); // 網址變更時重置驗證狀態
-  }, [dynamicUrl]);
-
-  // 🟢 核心功能：連結資料庫
   const handleConnect = async () => {
-    if (!finalScriptUrl) return alert('請輸入系統網址');
-    if (!apiSecret) return alert('請輸入通關密語');
-
-    // 嘗試從雲端拉取資料以驗證連線
-    const success = await syncFromCloud();
+    // 優先使用寫死的 URL，沒有才用輸入框的
+    const urlToUse = GOOGLE_SCRIPT_URL || dynamicUrl;
     
-    // 只有當 success 為 true 時，才設定為「已驗證」
+    if (!urlToUse.trim()) return alert('請輸入系統網址');
+    if (!apiSecret.trim()) return alert('請輸入通關密語');
+
+    // 🟢 關鍵修改：直接把現在輸入框的值傳進去測試，不依賴 localStorage
+    const success = await syncFromCloud(false, urlToUse, apiSecret);
+    
     if (success) {
+      // ✅ 測試成功了！這時候才把正確的設定存起來
+      localStorage.setItem('zenflow_gas_url', urlToUse);
+      localStorage.setItem('zenflow_gas_secret', apiSecret);
       setIsVerified(true);
     } else {
       setIsVerified(false);
@@ -56,7 +55,6 @@ const Settings: React.FC = () => {
     }
   };
 
-  // 模板功能
   const handleAddTemplate = () => {
     if (!newTemplateName.trim()) return;
     const newTemplate: ClassTemplate = {
@@ -75,14 +73,15 @@ const Settings: React.FC = () => {
   };
 
   // 狀態顯示邏輯
+  const isConfigured = !!((GOOGLE_SCRIPT_URL || dynamicUrl) && apiSecret);
+  
   const getStatusDisplay = () => {
-    if (!isConfigured) return { color: 'bg-slate-200', text: '等待輸入', sub: '請輸入資料庫連結資訊' };
     if (syncStatus === 'syncing') return { color: 'bg-blue-500 animate-pulse', text: '正在連線...', sub: '資料同步中' };
-    if (syncStatus === 'success' && isVerified) return { color: 'bg-emerald-500', text: '✅ 已連線', sub: '自動存檔功能運作中' };
-    if (syncStatus === 'error') return { color: 'bg-red-500', text: '連線失敗', sub: '請檢查密碼或網址' };
     
-    // 預設狀態 (已輸入但未連線)
-    if (isVerified) return { color: 'bg-emerald-500', text: '已設定', sub: '準備就緒' };
+    if (isVerified) return { color: 'bg-emerald-500', text: '✅ 已連線', sub: '自動存檔運作中' };
+    
+    if (!isConfigured) return { color: 'bg-slate-200', text: '等待輸入', sub: '請輸入資料庫連結資訊' };
+    
     return { color: 'bg-amber-400', text: '待連線', sub: '請點擊下方按鈕進行驗證' };
   };
 
@@ -92,7 +91,6 @@ const Settings: React.FC = () => {
     <div className="space-y-6 pb-10">
       <h2 className="text-xl font-bold text-slate-800">系統設定</h2>
 
-      {/* 連線設定區 */}
       <section className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm space-y-6">
         <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
           <div className={`w-3 h-3 rounded-full ${status.color}`}></div>
@@ -111,7 +109,10 @@ const Settings: React.FC = () => {
             <input 
               type="text" 
               value={dynamicUrl} 
-              onChange={(e) => setDynamicUrl(e.target.value)} 
+              onChange={(e) => {
+                setDynamicUrl(e.target.value);
+                setIsVerified(false); // 修改時解鎖
+              }} 
               disabled={isVerified}
               placeholder="https://script.google.com/..." 
               className={`w-full border rounded-xl px-4 py-3 text-xs ${isVerified ? 'bg-slate-100 text-slate-400' : 'bg-white'}`} 
@@ -124,14 +125,16 @@ const Settings: React.FC = () => {
           <input 
             type="password" 
             value={apiSecret} 
-            onChange={(e) => setApiSecret(e.target.value)} 
+            onChange={(e) => {
+              setApiSecret(e.target.value);
+              setIsVerified(false); // 修改時解鎖
+            }} 
             disabled={isVerified}
             placeholder="請輸入密碼..." 
             className={`w-full border rounded-xl px-4 py-3 text-lg font-bold tracking-widest ${isVerified ? 'bg-slate-100 text-slate-400' : 'bg-white'}`} 
           />
         </div>
 
-        {/* 單一按鈕：連結並同步 */}
         {!isVerified && (
           <button 
             onClick={handleConnect} 
@@ -143,7 +146,6 @@ const Settings: React.FC = () => {
         )}
       </section>
 
-      {/* 常用課程模板 */}
       <section className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm space-y-4">
         <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest">常用課程模板</h3>
         

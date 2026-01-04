@@ -12,7 +12,7 @@ export interface Member {
   phone: string;
   packageType: 'single' | 'package_10' | 'monthly' | 'unlimited';
   remainingClasses: number;
-  totalPurchasedClasses: number; // 累積購買總堂數
+  totalPurchasedClasses: number;
   joinDate: string;
   note?: string;
 }
@@ -24,7 +24,7 @@ export interface YogaClass {
   time: string;
   location: string;
   maxCapacity: number;
-  attendees: string[]; // Member IDs
+  attendees: string[];
   instructor: string;
   status: 'upcoming' | 'completed' | 'cancelled';
 }
@@ -37,7 +37,7 @@ export interface AttendanceRecord {
   status: 'present' | 'absent' | 'late';
 }
 
-// 🟢 新增：課程模板介面
+// 🟢 確保這裡有 ClassTemplate 定義
 export interface ClassTemplate {
   id: string;
   name: string;
