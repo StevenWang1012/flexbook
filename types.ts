@@ -1,4 +1,3 @@
-
 export enum View {
   DASHBOARD = 'DASHBOARD',
   CLASSES = 'CLASSES',
@@ -36,4 +35,12 @@ export interface AttendanceRecord {
   memberId: string;
   timestamp: string;
   status: 'present' | 'absent' | 'late';
+}
+
+// 🟢 新增：課程模板介面
+export interface ClassTemplate {
+  id: string;
+  name: string;
+  defaultLocation?: string;
+  defaultCapacity?: number;
 }
